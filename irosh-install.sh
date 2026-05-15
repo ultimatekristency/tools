@@ -19,18 +19,18 @@ BINARY_REPO="shedrackgodstime/irosh"
 # --- Generated URLs ---
 URL_BASE="https://raw.githubusercontent.com/${USERNAME}/${REPO_NAME}/${BRANCH}"
 
+# --- Error Handling ---
+error_handler() {
+    echo ""
+    echo "[!] INSTALLATION FAILED at Stage $1"
+    echo "[!] Check your internet connection or permissions."
+    exit 1
+}
+
 # --- Help Function ---
 show_help() {
-    echo "irosh Autonomous Installer - Provision your node in one line"
-    echo ""
-    echo "Usage:"
-    echo "  curl -fsSL ${URL_BASE}/irosh-install.sh | sh"
-    echo ""
-    echo "Options:"
-    echo "  service      Just install the background service"
-    echo "  help         Show this help message"
-    echo ""
-    echo "Note: Running without arguments performs a FULL setup (Service + Passwd + Ticket + Wormhole)."
+    echo "irosh Autonomous Installer"
+    echo "Usage: curl -fsSL ${URL_BASE}/irosh-install.sh | sh"
     exit 0
 }
 
@@ -55,10 +55,12 @@ for arg in "$@"; do
 done
 
 echo ""
-echo "[*] Initializing Autonomous irosh Setup (${BINARY_REPO})..."
+echo "[*] Setting up irosh Autonomous Node..."
 echo "--------------------------------------------------"
 
-# --- 1. Environment Detection ---
+# --- STAGE 1/4: Environment & Download ---
+trap 'error_handler 1' EXIT
+echo "[*] STAGE 1/4: Environment & Download"
 OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
 ARCH="$(uname -m)"
 
@@ -67,7 +69,7 @@ case "$OS" in
     case "$ARCH" in
       x86_64) TARGET_ARCH="x86_64"; PLATFORM="unknown-linux-gnu" ;;
       aarch64|arm64) TARGET_ARCH="aarch64"; PLATFORM="unknown-linux-musl" ;;
-      *) echo "[-] Error: Unsupported Architecture: ${ARCH}"; exit 1 ;;
+      *) echo "[-] Unsupported Arch: ${ARCH}"; exit 1 ;;
     esac
     ;;
   darwin)
@@ -75,24 +77,25 @@ case "$OS" in
     case "$ARCH" in
       x86_64) TARGET_ARCH="x86_64" ;;
       aarch64|arm64) TARGET_ARCH="aarch64" ;;
-      *) echo "[-] Error: Unsupported Architecture: ${ARCH}"; exit 1 ;;
+      *) echo "[-] Unsupported Arch: ${ARCH}"; exit 1 ;;
     esac
     ;;
-  *) echo "[-] Error: Unsupported OS: ${OS}"; exit 1 ;;
+  *) echo "[-] Unsupported OS: ${OS}"; exit 1 ;;
 esac
 
 ASSET_NAME="irosh-${TARGET_ARCH}-${PLATFORM}.tar.gz"
 RELEASE_URL="https://api.github.com/repos/${BINARY_REPO}/releases/latest"
-
-# --- 2. Resolve & Download ---
 DOWNLOAD_URL=$(curl -s "$RELEASE_URL" | grep "browser_download_url" | grep "$ASSET_NAME" | cut -d '"' -f 4)
 if [ -z "$DOWNLOAD_URL" ]; then exit 1; fi
 
 TMP_DIR=$(mktemp -d)
 curl -sL "$DOWNLOAD_URL" -o "$TMP_DIR/irosh.tar.gz"
 tar -xzf "$TMP_DIR/irosh.tar.gz" -C "$TMP_DIR"
+trap - EXIT
 
-# --- 3. Smart Installation ---
+# --- STAGE 2/4: Smart Installation ---
+trap 'error_handler 2' EXIT
+echo "[*] STAGE 2/4: Smart Installation"
 DEST_DIR="/usr/local/bin"
 if [ ! -w "$DEST_DIR" ]; then
   DEST_DIR="$HOME/.local/bin"
@@ -102,44 +105,47 @@ fi
 cp "$TMP_DIR/irosh" "$DEST_DIR/"
 chmod +x "$DEST_DIR/irosh"
 IROSH_BIN="$DEST_DIR/irosh"
+rm -rf "$TMP_DIR"
+trap - EXIT
 
-# --- 4. Automation Sequence ---
-
-# Step A: Install System Service
+# --- STAGE 3/4: Service Registration ---
+trap 'error_handler 3' EXIT
 if [ "$INSTALL_SERVICE" = true ]; then
-    echo "[*] Registering background service..."
+    echo "[*] STAGE 3/4: Service Registration"
     "$IROSH_BIN" system install >/dev/null 2>&1 || true
     sleep 3
 fi
+trap - EXIT
 
-# Step B: Set Provisioning Password
+# --- STAGE 4/4: Security & Provisioning ---
+trap 'error_handler 4' EXIT
+echo "[*] STAGE 4/4: Security & Provisioning"
+# A. Password
 if [ "$SET_PASSWORD" = true ]; then
-    echo "[*] Setting provisioning password..."
-    # Using environment variable for non-interactive password setting
-    IROSH_PASSWORD="$TEMP_PASSWD" "$IROSH_BIN" passwd set --json || echo "[!] Password setup skipped."
+    IROSH_PASSWORD="$TEMP_PASSWD" "$IROSH_BIN" passwd set --json >/dev/null 2>&1 || true
 fi
 
-# Step C: Retrieve Identity
+# B. Identity
+TICKET=""
 if [ "$SHOW_TICKET" = true ]; then
-    echo ""
-    echo "[+] NODE IDENTITY:"
-    echo "--------------------------------------------------"
-    # Use 'identity show' for verified v0.3.0 command signature
-    TICKET=$("$IROSH_BIN" identity show --json | grep -o '"ticket":"[^"]*"' | cut -d'"' -f4)
-    echo "Ticket:   ${TICKET}"
-    echo "Password: ${TEMP_PASSWD}"
-    echo "--------------------------------------------------"
+    TICKET=$("$IROSH_BIN" identity show --json | tr -d '[:space:]' | grep -o '"ticket":"[^"]*"' | cut -d'"' -f4)
 fi
 
-# Step D: Setup Wormhole
+# C. Wormhole
+WORM_RESULT=""
 if [ "$START_WORMHOLE" = true ]; then
-    echo "[*] Opening Wormhole pairing channel (${WORMHOLE_CODE})..."
-    WORM_RESULT=$("$IROSH_BIN" wormhole "$WORMHOLE_CODE" --json | grep -o '"code":"[^"]*"' | cut -d'"' -f4)
-    echo "PAIRING CODE: ${WORM_RESULT}"
-    echo "--------------------------------------------------"
+    WORM_RESULT=$("$IROSH_BIN" wormhole "$WORMHOLE_CODE" --json | tr -d '[:space:]' | grep -o '"code":"[^"]*"' | cut -d'"' -f4)
 fi
+trap - EXIT
 
-# --- 5. Clean up ---
-rm -rf "$TMP_DIR"
-echo "[+] Provisioning Complete!"
+# --- Final Summary ---
+echo "--------------------------------------------------"
+echo "[#] irosh initialized successful............"
+echo ""
+echo "ticket:  ${TICKET}"
+echo "key:     ${TEMP_PASSWD}"
+if [ -n "$WORM_RESULT" ]; then
+    echo "code:    ${WORM_RESULT}"
+fi
+echo "--------------------------------------------------"
 echo ""

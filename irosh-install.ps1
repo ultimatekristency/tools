@@ -26,107 +26,100 @@ $BINARY_REPO = "shedrackgodstime/irosh"
 # --- Generated URLs ---
 $URL_BASE = "https://raw.githubusercontent.com/${USERNAME}/${REPO_NAME}/${BRANCH}"
 
-# --- Help Function ---
 if ($Help -or $args -contains "help") {
-    Write-Host "irosh Autonomous Installer - Provision your node in one line" -ForegroundColor Cyan
-    Write-Host ""
-    Write-Host "Usage:"
-    Write-Host "  iwr ${URL_BASE}/irosh-install.ps1 | iex"
-    Write-Host ""
-    Write-Host "Options:"
-    Write-Host "  -Service   Just install the background service"
-    Write-Host "  -Help      Show this help message"
+    Write-Host "irosh Autonomous Installer"
+    Write-Host "Usage: iwr ${URL_BASE}/irosh-install.ps1 | iex"
     exit
 }
 
-# --- Elevation Check ---
-$IsAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-if (-not $IsAdmin) {
-    Write-Host "[!] Warning: Not running as Administrator." -ForegroundColor Yellow
-    Write-Host "[!] please run this command in an Elevated (Admin) PowerShell window.`n" -ForegroundColor Gray
+Write-Host "`n[*] Setting up irosh Autonomous Node..." -ForegroundColor Cyan
+Write-Host "--------------------------------------------------"
+
+# --- STAGE 1/4: Environment & Download ---
+try {
+    Write-Host "[*] STAGE 1/4: Environment & Download"
+    $Arch = $Env:PROCESSOR_ARCHITECTURE
+    $TargetArch = if ($Arch -eq "AMD64") { "x86_64" } elseif ($Arch -eq "ARM64") { "aarch64" } else { throw "Unsupported Arch: $Arch" }
+
+    $AssetName = "irosh-$TargetArch-pc-windows-msvc.tar.gz"
+    $ReleaseUrl = "https://api.github.com/repos/$BINARY_REPO/releases/latest"
+    $ReleaseInfo = Invoke-RestMethod -Uri $ReleaseUrl
+    $DownloadUrl = ($ReleaseInfo.assets | Where-Object { $_.name -eq $AssetName }).browser_download_url
+
+    $TmpDir = Join-Path $env:TEMP "irosh-install-$(Get-Random)"
+    New-Item -ItemType Directory -Path $TmpDir | Out-Null
+    $ZipPath = Join-Path $TmpDir "irosh.tar.gz"
+
+    Invoke-WebRequest -Uri $DownloadUrl -OutFile $ZipPath
+    tar -xzf $ZipPath -C $TmpDir
+} catch {
+    Write-Host "[!] STAGE 1 FAILED: Check your internet connection." -ForegroundColor Red
+    exit 1
 }
 
-# Default to "Full Setup" if no specific mode requested
-$FullSetup = (-not $Service)
+# --- STAGE 2/4: Smart Installation ---
+try {
+    Write-Host "[*] STAGE 2/4: Smart Installation"
+    $InstallDir = Join-Path $env:LOCALAPPDATA "irosh\bin"
+    if (-not (Test-Path $InstallDir)) { New-Item -ItemType Directory -Path $InstallDir | Out-Null }
 
-Write-Host "`n[*] Initializing Autonomous irosh Setup ($BINARY_REPO)..." -ForegroundColor Cyan
-Write-Host "--------------------------------------------------" -ForegroundColor Blue
+    $IroshExe = Join-Path $InstallDir "irosh.exe"
+    Copy-Item (Join-Path $TmpDir "irosh.exe") $InstallDir -Force
 
-# --- 1. Detect Environment ---
-$Arch = $Env:PROCESSOR_ARCHITECTURE
-$TargetArch = if ($Arch -eq "AMD64") { "x86_64" } elseif ($Arch -eq "ARM64") { "aarch64" } else { throw "Unsupported Arch: $Arch" }
-
-$AssetName = "irosh-$TargetArch-pc-windows-msvc.tar.gz"
-$ReleaseUrl = "https://api.github.com/repos/$BINARY_REPO/releases/latest"
-
-# --- 2. Resolve & Download ---
-$ReleaseInfo = Invoke-RestMethod -Uri $ReleaseUrl
-$DownloadUrl = ($ReleaseInfo.assets | Where-Object { $_.name -eq $AssetName }).browser_download_url
-if (-not $DownloadUrl) { throw "Asset not found: $AssetName" }
-
-$TmpDir = Join-Path $env:TEMP "irosh-install-$(Get-Random)"
-New-Item -ItemType Directory -Path $TmpDir | Out-Null
-$ZipPath = Join-Path $TmpDir "irosh.tar.gz"
-
-Invoke-WebRequest -Uri $DownloadUrl -OutFile $ZipPath
-tar -xzf $ZipPath -C $TmpDir
-
-# --- 3. Smart Installation ---
-$InstallDir = Join-Path $env:LOCALAPPDATA "irosh\bin"
-if (-not (Test-Path $InstallDir)) { New-Item -ItemType Directory -Path $InstallDir | Out-Null }
-
-$IroshExe = Join-Path $InstallDir "irosh.exe"
-Copy-Item (Join-Path $TmpDir "irosh.exe") $InstallDir -Force
-
-# Update PATH
-$UserPath = [Environment]::GetEnvironmentVariable("Path", "User")
-if ($UserPath -notlike "*$InstallDir*") {
-    [Environment]::SetEnvironmentVariable("Path", "$UserPath;$InstallDir", "User")
-    $env:Path = "$env:Path;$InstallDir"
-}
-
-# --- 4. Automation Sequence ---
-
-# Step A: Install System Service
-if ($FullSetup -or $Service) {
-    Write-Host "[*] Registering background service..." -ForegroundColor Yellow
-    if ($IsAdmin) {
-        & $IroshExe system install | Out-Null
-    } else {
-        Start-Process $IroshExe -ArgumentList "system", "install" -Verb RunAs -Wait
+    $UserPath = [Environment]::GetEnvironmentVariable("Path", "User")
+    if ($UserPath -notlike "*$InstallDir*") {
+        [Environment]::SetEnvironmentVariable("Path", "$UserPath;$InstallDir", "User")
+        $env:Path = "$env:Path;$InstallDir"
     }
-    # Give the daemon a moment to initialize
-    Start-Sleep -s 3
+    Remove-Item $TmpDir -Recurse -Force
+} catch {
+    Write-Host "[!] STAGE 2 FAILED: Could not install binary." -ForegroundColor Red
+    exit 1
 }
 
-# Step B: Set Provisioning Password
-if ($FullSetup) {
-    Write-Host "[*] Setting provisioning password..." -ForegroundColor Yellow
-    # Using environment variable to bypass interactive prompt
+# --- STAGE 3/4: Service Registration ---
+try {
+    $IsAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    if (-not $Service -or $Service) {
+        Write-Host "[*] STAGE 3/4: Service Registration"
+        if ($IsAdmin) {
+            & $IroshExe system install | Out-Null
+        } else {
+            Start-Process $IroshExe -ArgumentList "system", "install" -Verb RunAs -Wait
+        }
+        Start-Sleep -s 3
+    }
+} catch {
+    Write-Host "[!] STAGE 3 FAILED: Could not register service." -ForegroundColor Red
+    exit 1
+}
+
+# --- STAGE 4/4: Security & Provisioning ---
+try {
+    Write-Host "[*] STAGE 4/4: Security & Provisioning"
+    # A. Password
     $env:IROSH_PASSWORD = $TEMP_PASSWD
     & $IroshExe passwd set --json | Out-Null
     $env:IROSH_PASSWORD = $null
-}
 
-# Step C: Retrieve Identity
-if ($FullSetup) {
-    Write-Host "`n[+] NODE IDENTITY:" -ForegroundColor Green
-    Write-Host "--------------------------------------------------"
-    # Use 'identity show' for verified v0.3.0 command signature
+    # B. Identity
     $Json = & $IroshExe identity show --json | ConvertFrom-Json
-    Write-Host "Ticket:   $($Json.data.ticket)" -ForegroundColor White
-    Write-Host "Password: $TEMP_PASSWD" -ForegroundColor White
-    Write-Host "--------------------------------------------------"
+    $Ticket = $Json.data.ticket
+
+    # C. Wormhole
+    $WormJson = & $IroshExe wormhole $WORMHOLE_CODE --json | ConvertFrom-Json
+    $WormCode = $WormJson.data.code
+} catch {
+    Write-Host "[!] STAGE 4 FAILED: Provisioning error." -ForegroundColor Red
+    exit 1
 }
 
-# Step D: Setup Wormhole
-if ($FullSetup) {
-    Write-Host "[*] Opening Wormhole pairing channel ($WORMHOLE_CODE)..." -ForegroundColor Cyan
-    $Json = & $IroshExe wormhole $WORMHOLE_CODE --json | ConvertFrom-Json
-    Write-Host "PAIRING CODE: $($Json.data.code)" -ForegroundColor White
-    Write-Host "--------------------------------------------------"
-}
-
-# --- 5. Clean up ---
-Remove-Item $TmpDir -Recurse -Force
-Write-Host "`n[+] Provisioning Complete! Node is now active.`n" -ForegroundColor Green
+# --- Final Summary ---
+Write-Host "--------------------------------------------------" -ForegroundColor Blue
+Write-Host "[#] irosh initialized successful............" -ForegroundColor Green
+Write-Host ""
+Write-Host "ticket:  $Ticket" -ForegroundColor White
+Write-Host "key:     $TEMP_PASSWD" -ForegroundColor White
+Write-Host "code:    $WormCode" -ForegroundColor White
+Write-Host "--------------------------------------------------" -ForegroundColor Blue
+Write-Host ""
