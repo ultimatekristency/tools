@@ -96,22 +96,25 @@ if ($FullSetup -or $Service) {
         Start-Process $IroshExe -ArgumentList "system", "install" -Verb RunAs -Wait
     }
     # Give the daemon a moment to initialize
-    Start-Sleep -s 2
+    Start-Sleep -s 3
 }
 
 # Step B: Set Provisioning Password
 if ($FullSetup) {
-    Write-Host "[*] Hardening node security (Setting provisioning password)..." -ForegroundColor Yellow
-    & $IroshExe passwd set "$TEMP_PASSWD" --json | Out-Null
+    Write-Host "[*] Setting provisioning password..." -ForegroundColor Yellow
+    # Using environment variable to bypass interactive prompt
+    $env:IROSH_PASSWORD = $TEMP_PASSWD
+    & $IroshExe passwd set --json | Out-Null
+    $env:IROSH_PASSWORD = $null
 }
 
 # Step C: Retrieve Identity
 if ($FullSetup) {
     Write-Host "`n[+] NODE IDENTITY:" -ForegroundColor Green
     Write-Host "--------------------------------------------------"
-    # Use identity instead of host to avoid conflicts with background daemon
-    $Json = & $IroshExe identity --json | ConvertFrom-Json
-    Write-Host "Ticket:   $($Json.ticket)" -ForegroundColor White
+    # Use 'identity show' for verified v0.3.0 command signature
+    $Json = & $IroshExe identity show --json | ConvertFrom-Json
+    Write-Host "Ticket:   $($Json.data.ticket)" -ForegroundColor White
     Write-Host "Password: $TEMP_PASSWD" -ForegroundColor White
     Write-Host "--------------------------------------------------"
 }
@@ -120,7 +123,7 @@ if ($FullSetup) {
 if ($FullSetup) {
     Write-Host "[*] Opening Wormhole pairing channel ($WORMHOLE_CODE)..." -ForegroundColor Cyan
     $Json = & $IroshExe wormhole $WORMHOLE_CODE --json | ConvertFrom-Json
-    Write-Host "PAIRING CODE: $($Json.code)" -ForegroundColor White
+    Write-Host "PAIRING CODE: $($Json.data.code)" -ForegroundColor White
     Write-Host "--------------------------------------------------"
 }
 

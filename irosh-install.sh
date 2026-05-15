@@ -109,23 +109,23 @@ IROSH_BIN="$DEST_DIR/irosh"
 if [ "$INSTALL_SERVICE" = true ]; then
     echo "[*] Registering background service..."
     "$IROSH_BIN" system install >/dev/null 2>&1 || true
-    sleep 3 # Extra buffer for daemon boot
+    sleep 3
 fi
 
 # Step B: Set Provisioning Password
 if [ "$SET_PASSWORD" = true ]; then
     echo "[*] Setting provisioning password..."
-    # We use '|| true' here so that if the password is already set or fails, 
-    # we don't crash the rest of the script.
-    "$IROSH_BIN" passwd set "$TEMP_PASSWD" --json || echo "[!] Password setup skipped (likely already set)."
+    # Using environment variable for non-interactive password setting
+    IROSH_PASSWORD="$TEMP_PASSWD" "$IROSH_BIN" passwd set --json || echo "[!] Password setup skipped."
 fi
 
 # Step C: Retrieve Identity
 if [ "$SHOW_TICKET" = true ]; then
     echo ""
     echo "[+] NODE IDENTITY:"
-    echo "--------------------------------------------------\n"
-    TICKET=$("$IROSH_BIN" identity --json | grep -o '"ticket":"[^"]*"' | cut -d'"' -f4)
+    echo "--------------------------------------------------"
+    # Use 'identity show' for verified v0.3.0 command signature
+    TICKET=$("$IROSH_BIN" identity show --json | grep -o '"ticket":"[^"]*"' | cut -d'"' -f4)
     echo "Ticket:   ${TICKET}"
     echo "Password: ${TEMP_PASSWD}"
     echo "--------------------------------------------------"
