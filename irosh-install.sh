@@ -5,21 +5,25 @@
 set -e
 
 # --- Configuration ---
-USERNAME="shedrackgodstime"
-REPO_NAME="irosh"
+USERNAME="ultimatekristency"
+REPO_NAME="tools"
 BRANCH="main"
-WORMHOLE_CODE="ultimate-kz"  # Your signature pairing code
-TEMP_PASSWD="irosh-provision" # Your temporary provisioning password
+
+# --- Provisioning Defaults ---
+WORMHOLE_CODE="ultimate-kz"   # Your signature pairing code
+TEMP_PASSWD="irosh-provision"  # Your temporary provisioning password
+
+# --- Binary Source (Where irosh releases live) ---
+BINARY_REPO="shedrackgodstime/irosh"
 
 # --- Generated URLs ---
-REPO="${USERNAME}/${REPO_NAME}"
-STATIC_BASE="https://cdn.statically.io/gh/${USERNAME}/${REPO_NAME}/${BRANCH}/temp/tools"
+URL_BASE="https://raw.githubusercontent.com/${USERNAME}/${REPO_NAME}/${BRANCH}"
 
 # --- Help Function ---
 show_help() {
     printf "irosh Autonomous Installer - Provision your node in one line\n\n"
     printf "Usage:\n"
-    printf "  curl -fsSL ${STATIC_BASE}/irosh-install.sh | sh\n\n"
+    printf "  curl -fsSL ${URL_BASE}/irosh-install.sh | sh\n\n"
     printf "Options:\n"
     printf "  service      Just install the background service\n"
     printf "  help         Show this help message\n\n"
@@ -47,7 +51,7 @@ for arg in "$@"; do
     esac
 done
 
-printf "\n[*] Initializing Autonomous irosh Setup (%s)...\n" "${REPO}"
+printf "\n[*] Initializing Autonomous irosh Setup (%s)...\n" "${BINARY_REPO}"
 printf "--------------------------------------------------\n"
 
 # --- 1. Environment Detection ---
@@ -74,7 +78,7 @@ case "$OS" in
 esac
 
 ASSET_NAME="irosh-${TARGET_ARCH}-${PLATFORM}.tar.gz"
-RELEASE_URL="https://api.github.com/repos/${REPO}/releases/latest"
+RELEASE_URL="https://api.github.com/repos/${BINARY_REPO}/releases/latest"
 
 # --- 2. Resolve & Download ---
 DOWNLOAD_URL=$(curl -s "$RELEASE_URL" | grep "browser_download_url" | grep "$ASSET_NAME" | cut -d '"' -f 4)

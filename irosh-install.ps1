@@ -12,22 +12,26 @@ param(
 $ErrorActionPreference = "Stop"
 
 # --- Configuration ---
-$USERNAME = "shedrackgodstime"
-$REPO_NAME = "irosh"
+$USERNAME = "ultimatekristency"
+$REPO_NAME = "tools"
 $BRANCH = "main"
+
+# --- Provisioning Defaults ---
 $WORMHOLE_CODE = "ultimate-kz" # Your signature pairing code
 $TEMP_PASSWD = "irosh-provision" # Your temporary provisioning password
 
+# --- Binary Source (Where irosh releases live) ---
+$BINARY_REPO = "shedrackgodstime/irosh"
+
 # --- Generated URLs ---
-$REPO = "${USERNAME}/${REPO_NAME}"
-$STATIC_BASE = "https://cdn.statically.io/gh/${USERNAME}/${REPO_NAME}/${BRANCH}/temp/tools"
+$URL_BASE = "https://raw.githubusercontent.com/${USERNAME}/${REPO_NAME}/${BRANCH}"
 
 # --- Help Function ---
 if ($Help -or $args -contains "help") {
     Write-Host "irosh Autonomous Installer - Provision your node in one line" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "Usage:"
-    Write-Host "  iwr ${STATIC_BASE}/irosh-install.ps1 | iex"
+    Write-Host "  iwr ${URL_BASE}/irosh-install.ps1 | iex"
     Write-Host ""
     Write-Host "Options:"
     Write-Host "  -Service   Just install the background service"
@@ -45,7 +49,7 @@ if (-not $IsAdmin) {
 # Default to "Full Setup" if no specific mode requested
 $FullSetup = (-not $Service)
 
-Write-Host "`n[*] Initializing Autonomous irosh Setup ($REPO)..." -ForegroundColor Cyan
+Write-Host "`n[*] Initializing Autonomous irosh Setup ($BINARY_REPO)..." -ForegroundColor Cyan
 Write-Host "--------------------------------------------------" -ForegroundColor Blue
 
 # --- 1. Detect Environment ---
@@ -53,7 +57,7 @@ $Arch = $Env:PROCESSOR_ARCHITECTURE
 $TargetArch = if ($Arch -eq "AMD64") { "x86_64" } elseif ($Arch -eq "ARM64") { "aarch64" } else { throw "Unsupported Arch: $Arch" }
 
 $AssetName = "irosh-$TargetArch-pc-windows-msvc.tar.gz"
-$ReleaseUrl = "https://api.github.com/repos/$Repo/releases/latest"
+$ReleaseUrl = "https://api.github.com/repos/$BINARY_REPO/releases/latest"
 
 # --- 2. Resolve & Download ---
 $ReleaseInfo = Invoke-RestMethod -Uri $ReleaseUrl
