@@ -95,6 +95,8 @@ if ($FullSetup -or $Service) {
     } else {
         Start-Process $IroshExe -ArgumentList "system", "install" -Verb RunAs -Wait
     }
+    # Give the daemon a moment to initialize
+    Start-Sleep -s 2
 }
 
 # Step B: Set Provisioning Password

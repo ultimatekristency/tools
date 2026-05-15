@@ -109,6 +109,8 @@ IROSH_BIN="$DEST_DIR/irosh"
 if [ "$INSTALL_SERVICE" = true ]; then
     echo "[*] Registering background service..."
     "$IROSH_BIN" system install >/dev/null 2>&1 || true
+    # Give the daemon a moment to initialize the P2P node
+    sleep 2
 fi
 
 # Step B: Set Provisioning Password
