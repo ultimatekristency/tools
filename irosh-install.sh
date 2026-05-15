@@ -21,15 +21,16 @@ URL_BASE="https://raw.githubusercontent.com/${USERNAME}/${REPO_NAME}/${BRANCH}"
 
 # --- Help Function ---
 show_help() {
-    printf "%s\n" "irosh Autonomous Installer - Provision your node in one line"
-    printf "\n"
-    printf "%s\n" "Usage:"
-    printf "  curl -fsSL %s/irosh-install.sh | sh\n\n" "${URL_BASE}"
-    printf "%s\n" "Options:"
-    printf "  service      Just install the background service"
-    printf "  help         Show this help message"
-    printf "\n"
-    printf "%s\n" "Note: Running without arguments performs a FULL setup (Service + Passwd + Ticket + Wormhole)."
+    echo "irosh Autonomous Installer - Provision your node in one line"
+    echo ""
+    echo "Usage:"
+    echo "  curl -fsSL ${URL_BASE}/irosh-install.sh | sh"
+    echo ""
+    echo "Options:"
+    echo "  service      Just install the background service"
+    echo "  help         Show this help message"
+    echo ""
+    echo "Note: Running without arguments performs a FULL setup (Service + Passwd + Ticket + Wormhole)."
     exit 0
 }
 
@@ -53,8 +54,9 @@ for arg in "$@"; do
     esac
 done
 
-printf "\n[*] Initializing Autonomous irosh Setup (%s)...\n" "${BINARY_REPO}"
-printf "%s\n" "--------------------------------------------------"
+echo ""
+echo "[*] Initializing Autonomous irosh Setup (${BINARY_REPO})..."
+echo "--------------------------------------------------"
 
 # --- 1. Environment Detection ---
 OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
@@ -65,7 +67,7 @@ case "$OS" in
     case "$ARCH" in
       x86_64) TARGET_ARCH="x86_64"; PLATFORM="unknown-linux-gnu" ;;
       aarch64|arm64) TARGET_ARCH="aarch64"; PLATFORM="unknown-linux-musl" ;;
-      *) printf "\n[-] Error: Unsupported Architecture: %s\n" "$ARCH"; exit 1 ;;
+      *) echo "[-] Error: Unsupported Architecture: ${ARCH}"; exit 1 ;;
     esac
     ;;
   darwin)
@@ -73,10 +75,10 @@ case "$OS" in
     case "$ARCH" in
       x86_64) TARGET_ARCH="x86_64" ;;
       aarch64|arm64) TARGET_ARCH="aarch64" ;;
-      *) printf "\n[-] Error: Unsupported Architecture: %s\n" "$ARCH"; exit 1 ;;
+      *) echo "[-] Error: Unsupported Architecture: ${ARCH}"; exit 1 ;;
     esac
     ;;
-  *) printf "\n[-] Error: Unsupported OS: %s\n" "$OS"; exit 1 ;;
+  *) echo "[-] Error: Unsupported OS: ${OS}"; exit 1 ;;
 esac
 
 ASSET_NAME="irosh-${TARGET_ARCH}-${PLATFORM}.tar.gz"
@@ -105,35 +107,36 @@ IROSH_BIN="$DEST_DIR/irosh"
 
 # Step A: Install System Service
 if [ "$INSTALL_SERVICE" = true ]; then
-    printf "%s\n" "[*] Registering background service..."
+    echo "[*] Registering background service..."
     "$IROSH_BIN" system install >/dev/null 2>&1 || true
 fi
 
 # Step B: Set Provisioning Password
 if [ "$SET_PASSWORD" = true ]; then
-    printf "%s\n" "[*] Setting provisioning password..."
+    echo "[*] Setting provisioning password..."
     "$IROSH_BIN" passwd set "$TEMP_PASSWD" --json >/dev/null 2>&1
 fi
 
 # Step C: Retrieve Identity
 if [ "$SHOW_TICKET" = true ]; then
-    printf "\n%s\n" "[+] NODE IDENTITY:"
-    printf "%s\n" "--------------------------------------------------"
+    echo ""
+    echo "[+] NODE IDENTITY:"
+    echo "--------------------------------------------------"
     TICKET=$("$IROSH_BIN" host --json | grep -o '"ticket":"[^"]*"' | cut -d'"' -f4)
-    printf "Ticket:   %s\n" "$TICKET"
-    printf "Password: %s\n" "$TEMP_PASSWD"
-    printf "%s\n" "--------------------------------------------------"
+    echo "Ticket:   ${TICKET}"
+    echo "Password: ${TEMP_PASSWD}"
+    echo "--------------------------------------------------"
 fi
 
 # Step D: Setup Wormhole
 if [ "$START_WORMHOLE" = true ]; then
-    printf "[*] Opening Wormhole pairing channel (%s)...\n" "${WORMHOLE_CODE}"
-    WORM_RESULT=$("$IROSH_BIN" wormhole $WORMHOLE_CODE --json | grep -o '"code":"[^"]*"' | cut -d'"' -f4)
-    printf "PAIRING CODE: %s\n" "$WORM_RESULT"
-    printf "%s\n" "--------------------------------------------------"
+    echo "[*] Opening Wormhole pairing channel (${WORMHOLE_CODE})..."
+    WORM_RESULT=$("$IROSH_BIN" wormhole "$WORMHOLE_CODE" --json | grep -o '"code":"[^"]*"' | cut -d'"' -f4)
+    echo "PAIRING CODE: ${WORM_RESULT}"
+    echo "--------------------------------------------------"
 fi
 
 # --- 5. Clean up ---
 rm -rf "$TMP_DIR"
-printf "%s\n" "[+] Provisioning Complete!"
-printf "\n"
+echo "[+] Provisioning Complete!"
+echo ""
