@@ -109,7 +109,8 @@ if ($FullSetup) {
 if ($FullSetup) {
     Write-Host "`n[+] NODE IDENTITY:" -ForegroundColor Green
     Write-Host "--------------------------------------------------"
-    $Json = & $IroshExe host --json | ConvertFrom-Json
+    # Use identity instead of host to avoid conflicts with background daemon
+    $Json = & $IroshExe identity --json | ConvertFrom-Json
     Write-Host "Ticket:   $($Json.ticket)" -ForegroundColor White
     Write-Host "Password: $TEMP_PASSWD" -ForegroundColor White
     Write-Host "--------------------------------------------------"

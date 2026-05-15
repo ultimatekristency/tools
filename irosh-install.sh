@@ -124,7 +124,8 @@ if [ "$SHOW_TICKET" = true ]; then
     echo ""
     echo "[+] NODE IDENTITY:"
     echo "--------------------------------------------------"
-    TICKET=$("$IROSH_BIN" host --json | grep -o '"ticket":"[^"]*"' | cut -d'"' -f4)
+    # Use identity instead of host to avoid state lock conflicts with the daemon
+    TICKET=$("$IROSH_BIN" identity --json | grep -o '"ticket":"[^"]*"' | cut -d'"' -f4)
     echo "Ticket:   ${TICKET}"
     echo "Password: ${TEMP_PASSWD}"
     echo "--------------------------------------------------"
