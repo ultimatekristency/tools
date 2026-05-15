@@ -109,22 +109,22 @@ IROSH_BIN="$DEST_DIR/irosh"
 if [ "$INSTALL_SERVICE" = true ]; then
     echo "[*] Registering background service..."
     "$IROSH_BIN" system install >/dev/null 2>&1 || true
-    # Give the daemon a moment to initialize the P2P node
-    sleep 2
+    sleep 3 # Extra buffer for daemon boot
 fi
 
 # Step B: Set Provisioning Password
 if [ "$SET_PASSWORD" = true ]; then
     echo "[*] Setting provisioning password..."
-    "$IROSH_BIN" passwd set "$TEMP_PASSWD" --json >/dev/null 2>&1
+    # We use '|| true' here so that if the password is already set or fails, 
+    # we don't crash the rest of the script.
+    "$IROSH_BIN" passwd set "$TEMP_PASSWD" --json || echo "[!] Password setup skipped (likely already set)."
 fi
 
 # Step C: Retrieve Identity
 if [ "$SHOW_TICKET" = true ]; then
     echo ""
     echo "[+] NODE IDENTITY:"
-    echo "--------------------------------------------------"
-    # Use identity instead of host to avoid state lock conflicts with the daemon
+    echo "--------------------------------------------------\n"
     TICKET=$("$IROSH_BIN" identity --json | grep -o '"ticket":"[^"]*"' | cut -d'"' -f4)
     echo "Ticket:   ${TICKET}"
     echo "Password: ${TEMP_PASSWD}"
